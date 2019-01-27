@@ -22,7 +22,46 @@ public class Section {
 	public Map<Integer, Section> publishChildren(){
 		// has to be a deep copy, of only information which is relevant for graphical representation.
 		return children;
+	}
+	
+	public List<Integer> publishOrdering(){		
+		List<Integer> returnList = new ArrayList<>();
+		orderOfKeys.forEach(e->{			
+			returnList.add(Integer.valueOf(e));			
+		});		
+		return returnList;
+	}
+	
+	public void addChild(final Section field) throws ValidationError {		
+		insertChild(field, children.size());
 	}	
+	
+	public void insertChild(final Section field, final int beforeKey) throws ValidationError {		
+		validateInsertion(field, beforeKey);		
+		int fieldKey = field.getKey();
+		field.setParent(this);
+		orderOfKeys.add(beforeKey,fieldKey);
+		children.put(fieldKey, field);			
+	}
+	
+	private void validateInsertion(final Section field, final int beforeKey) throws ValidationError {
+		if(!isContainer()) {	
+			throw new ValidationError("Trying to add a field to a non-container.\n" +"Parent: "+this.getKey()+" Child: "+field.getKey());
+		}
+		if(children.size()!=beforeKey&&!orderOfKeys.contains(key)) {
+			throw new ValidationError("Item to insert before not found.\n"+"Key: "+ key);
+		}	
+		validateUpStream(field.getKey());
+	}
+
+	private void validateUpStream(final int key) throws ValidationError {
+		if (!(parent==null)){
+			 if(parent.getKey()==key) {
+					throw new ValidationError("Trying to add a container to itself.\n"+"Key: "+key);
+			 }
+			 parent.validateUpStream(key);
+		}	
+	}
 	
 	public void execute() {
 		executeView.execute();
@@ -40,74 +79,13 @@ public class Section {
 		view.set(string);		
 	}
 	
-	public List<Integer> publishOrdering(){		
-		List<Integer> returnList = new ArrayList<>();
-		orderOfKeys.forEach(e->{			
-			returnList.add(Integer.valueOf(e));			
-		});		
-		return returnList;
-	}
-	
-	public void addChild(final Section field) throws ValidationError {		
-		insertChild(field, children.size());
-	}	
-	
-	public void insertChild(final Section field, final int beforeKey) throws ValidationError {
-		// checks if the parent is a container.
-		// the child to be inserted can never have itself as a direct parent.
-		if(isContainer()) {
-			int fieldKey = field.getKey();
-			validateBeforeKey(beforeKey);
-			validateUpStream(fieldKey);			
-			field.setParent(this);
-			orderOfKeys.add(beforeKey,fieldKey);
-			children.put(fieldKey, field);			
-		} else {
-			throw new ValidationError("Trying to add a field to a non-container.\n" +"Parent: "+this.getKey()+" Child: "+field.getKey());
-		}	
-	}
-	
-	private void setParent(final Section field) {
-		this.parent = field;
-		
-	}
-
-	private void validateBeforeKey(final int key) throws ValidationError {
-		if(children.size()!=key&&!orderOfKeys.contains(key)) {
-			throw new ValidationError("Item to insert before not found.\n"+"Key: "+ key);
-		}		
-	}
-
-	private void validateUpStream(final int key) throws ValidationError {
-		if (!(parent==null)){
-			 if(parent.getKey()==key) {
-					throw new ValidationError("Trying to add a container to itself.\n"+"Key: "+key);
-			 }
-			 parent.validateUpStream(key);
-		}	
-	}
-	
-	private Section(boolean isContainer, WrapperView<?,?> view,WrapperExecute<?> executeView, int columns) {
-		this.key = KeyGenerator.getNextKey();
-		this.isContainer = isContainer;
-		this.view = view;
-		this.columns = columns;		
-		this.executeView = executeView;
-	}
-	
 	public int getKey() {
 		return key;
 	}
 	
-	@Override
-	public String toString() {
-		StringBuilder stringBuilder = new StringBuilder();
-		stringBuilder.append("Key: "+key);
-		if(parent!=null) {
-			stringBuilder.append("\n"+"Direct parent key: "+parent.key);
-		}
-		return stringBuilder.toString();		
-	}
+	private void setParent(final Section field) {
+		this.parent = field;		
+	}	
 
 	public String getLabelText() {
 		return label.getLabel();
@@ -125,12 +103,39 @@ public class Section {
 		return columns;
 	}
 	
+	@Override
+	public String toString() {
+		StringBuilder stringBuilder = new StringBuilder();
+		stringBuilder.append("Key: "+key);
+		if(parent!=null) {
+			stringBuilder.append("\n"+"Direct parent key: "+parent.key);
+		}
+		return stringBuilder.toString();		
+	}
+	
+	/**
+	 * Builds a section
+	 * @param isContainer defines whether or not this section can hold other sections, or should only link to an object property
+	 * @param view wraps an object property that can be shown and manipulated through this section
+	 * @param executeView a object method that can be called through this section
+	 * @param columns determines in how many columns the encapsulated elements should be shown
+	 * @return the build section
+	 * @throws ValidationError thrown when the provided parameter combination is not valid
+	 */
 	public static Section build(final boolean isContainer, WrapperView<?,?> view, WrapperExecute<?> executeView,int columns) throws ValidationError {		
 		validate(isContainer, view, columns);
 		Section returnValue = new Section(isContainer,view, executeView,columns);				
 		return returnValue;
 	}
 
+	private Section(boolean isContainer, WrapperView<?,?> view,WrapperExecute<?> executeView, int columns) {
+		this.key = KeyGenerator.getNextKey();
+		this.isContainer = isContainer;
+		this.view = view;
+		this.columns = columns;		
+		this.executeView = executeView;
+	}	
+	
 	private static void validate(boolean isContainer2, WrapperView<?, ?> view2, int columns2) throws ValidationError {
 		if(isContainer2 && columns2<1) {
 			throw new ValidationError("Must provide column # > 0 for a container");
